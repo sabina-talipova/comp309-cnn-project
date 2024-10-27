@@ -1,9 +1,13 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from train import CustomCNN
 
-def test_model(model, test_loader):
+MODEL_FILE_PATH ='model.pth'
+
+def test_model(model, test_loader, device):
     model.eval()
     correct = 0
     total = 0
@@ -17,23 +21,28 @@ def test_model(model, test_loader):
 
     print(f'Accuracy of the model on the test images: {100 * correct / total}%')
 
-model = CustomCNN()
-model.load_state_dict(torch.load('model.pth'))
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = model.to(device)
+def main():
+    model = CustomCNN()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-train_transform = transforms.Compose([
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.RandomRotation(20),
-    transforms.RandomResizedCrop(224),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
+    checkpoint = torch.load(MODEL_FILE_PATH)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-test_loader = datasets.ImageFolder(root='./data', transform=train_transform)
-test_loader = DataLoader(test_loader, batch_size=32, shuffle=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
 
-test_model(model, test_loader)
+    train_transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+
+    test_loader = datasets.ImageFolder(root='testdata', transform=train_transform)
+    test_loader = DataLoader(test_loader, batch_size=32, shuffle=True)
+
+    test_model(model, test_loader, device)
+
+if __name__ == "__main__":
+    main()
