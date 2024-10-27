@@ -13,8 +13,44 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, models
 from dotenv import load_dotenv
 
-DATA_FOLDER_PATH = os.environ['FILE_PATH']
-MODEL_FILE_PATH = 'model.pth'
+DATA_FOLDER_PATH = "train_data"
+# DATA_FOLDER_PATH = os.environ['FILE_PATH']
+MODEL_FILE_PATH = 'model_2.pth'
+
+INPUT_SIZE = 224   # Image 224x224 and 3 channels
+HIDDEN_SIZE = 128  # Features in hidden layer
+NUM_CLASSES = 3    # Output
+BATCH_SIZE = 32
+
+class SimpleMLP(nn.Module):
+    """
+    A simple Multi-Layer Perceptron (MLP) for image classification.
+
+    This model consists of two fully connected layers with a ReLU activation in between.
+    - Input layer (fc1): Transforms a flattened image input of size 224x224x3 into 128 features.
+    - Output layer (fc2): Maps the 128 features to the 3 output classes.
+
+    The model is designed for use with 224x224 RGB images, which are flattened before
+    passing through the linear layers.
+
+    Methods:
+        forward(x): Defines the forward pass of the network.
+    """
+    def __init__(self):
+        super(SimpleMLP, self).__init__()
+
+        input_size = INPUT_SIZE * INPUT_SIZE * NUM_CLASSES
+
+        self.fc1 = nn.Linear(input_size, HIDDEN_SIZE)
+        self.fc2 = nn.Linear(HIDDEN_SIZE, NUM_CLASSES)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)
+        x = self.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
 
 class CustomCNN(nn.Module):
     def __init__(self):
@@ -27,9 +63,11 @@ class CustomCNN(nn.Module):
         # Max Pooling
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
+        self.input_size = int((INPUT_SIZE / 4) * (INPUT_SIZE / 4) * BATCH_SIZE)
+
         # Fully connected layers (for 224x224 images)
-        self.fc1 = nn.Linear(32 * 56 * 56, 128)  # For images 224x224
-        self.fc2 = nn.Linear(128, 3)  # 3 classes
+        self.fc1 = nn.Linear(self.input_size, HIDDEN_SIZE)  # For images 224x224
+        self.fc2 = nn.Linear(HIDDEN_SIZE, NUM_CLASSES)  # 3 classes
 
         # ReLU activation function
         self.relu = nn.ReLU()
@@ -38,13 +76,11 @@ class CustomCNN(nn.Module):
         # Direct propagation through layers
         x = self.pool(self.relu(self.conv1(x)))  # Convolutional layer -> ReLU -> Max Pooling
         x = self.pool(self.relu(self.conv2(x)))  # Convolutional layer -> ReLU -> Max Pooling
-        x = x.view(-1, 32 * 56 * 56)  # Reshape to match fully connected layers
+        x = x.view(-1, self.input_size)  # Reshape to match fully connected layers
         x = self.relu(self.fc1(x))  # Fully connected layers -> ReLU
         x = self.fc2(x)  # Fully connected layers -> output
 
         return x
-
-
 
 class ModelEDA:
   @staticmethod
@@ -114,16 +150,10 @@ class ModelEDA:
     print(f"Number of duplicate images: {num_duplicates}")
 
 
-def is_valid_file(file_path):
-    valid_extensions = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
-    if "ipynb" in file_path:
-      return False
-    return True
-
 class ModelTrainer:
-    def __init__(self, dir):
+    def __init__(self, dir, model):
         self.dir = dir
-        self.__model = CustomCNN()
+        self.__model = model
         self.__train_loader = None
         self.__criterion = None
         self.__optimizer = None
@@ -143,17 +173,23 @@ class ModelTrainer:
         train_transform = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomRotation(20),
-            transforms.RandomResizedCrop(224),
+            transforms.RandomResizedCrop(INPUT_SIZE),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-            transforms.Resize((224, 224)),
+            transforms.Resize((INPUT_SIZE, INPUT_SIZE)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
 
         # self.remove_wrong_folders()
 
+        def is_valid_file(file_path):
+            valid_extensions = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
+            if "ipynb" in file_path:
+                return False
+            return True
+
         train_dataset = datasets.ImageFolder(root=self.dir, transform=train_transform, is_valid_file=is_valid_file)
-        self.__train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True,num_workers=4)
+        self.__train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
 
         print("Load data DONE")
 
@@ -234,7 +270,7 @@ def eda():
 def main():
     load_dotenv()
     print("Training model...")
-    my_object = ModelTrainer(DATA_FOLDER_PATH)
+    my_object = ModelTrainer(DATA_FOLDER_PATH, CustomCNN())
     my_object.create_model()
     print("Training model DONE")
 
