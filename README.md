@@ -1,4 +1,7 @@
 # COMP309 CNN Project
+> [!NOTE]
+> WORK IN PROGRESS
+
 This project is a Flask-based web application for object recognition, designed to serve predictions based on a dataset of images. The application uses a machine learning model trained on image data to classify and recognize objects.
 
 ## Key Features:
